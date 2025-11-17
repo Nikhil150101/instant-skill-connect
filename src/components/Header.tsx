@@ -25,6 +25,28 @@ const Header = () => {
     await supabase.auth.signOut();
     navigate("/");
   };
+
+  const handleDashboardClick = async () => {
+    if (!user) return;
+
+    // Get user role to navigate to correct dashboard
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
+
+    if (roles && roles.length > 0) {
+      const role = roles[0].role;
+      if (role === "admin") {
+        navigate("/admin-dashboard");
+      } else if (role === "mentor") {
+        navigate("/mentor-dashboard");
+      } else {
+        navigate("/user-dashboard");
+      }
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4">
@@ -56,7 +78,7 @@ const Header = () => {
               <Button variant="ghost" onClick={handleSignOut} className="hidden md:inline-flex">
                 Sign Out
               </Button>
-              <Button className="bg-gradient-hero">
+              <Button className="bg-gradient-hero" onClick={handleDashboardClick}>
                 Dashboard
               </Button>
             </>
