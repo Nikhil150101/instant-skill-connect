@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { User } from "@supabase/supabase-js";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -16,6 +17,8 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [role, setRole] = useState<"user" | "mentor">("user");
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -39,7 +42,7 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -47,22 +50,69 @@ const Auth = () => {
       }
     });
 
-    setLoading(false);
-
     if (error) {
+      setLoading(false);
       toast({
         variant: "destructive",
         title: "Signup failed",
         description: error.message
       });
-    } else {
-      toast({
-        title: "Success!",
-        description: "Account created successfully. You can now log in."
-      });
-      setEmail("");
-      setPassword("");
+      return;
     }
+
+    if (data.user) {
+      // Create profile
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .insert({
+          user_id: data.user.id,
+          full_name: fullName
+        });
+
+      if (profileError) {
+        setLoading(false);
+        toast({
+          variant: "destructive",
+          title: "Profile creation failed",
+          description: profileError.message
+        });
+        return;
+      }
+
+      // Create user role
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .insert({
+          user_id: data.user.id,
+          role: role
+        });
+
+      if (roleError) {
+        setLoading(false);
+        toast({
+          variant: "destructive",
+          title: "Role assignment failed",
+          description: roleError.message
+        });
+        return;
+      }
+
+      // If mentor, redirect to onboarding
+      if (role === "mentor") {
+        setLoading(false);
+        navigate("/mentor-onboarding");
+        return;
+      }
+    }
+
+    setLoading(false);
+    toast({
+      title: "Success!",
+      description: "Account created successfully. You can now log in."
+    });
+    setEmail("");
+    setPassword("");
+    setFullName("");
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -137,6 +187,17 @@ const Auth = () => {
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
+                  <Label htmlFor="signup-name">Full Name</Label>
+                  <Input
+                    id="signup-name"
+                    type="text"
+                    placeholder="John Doe"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>
                   <Input
                     id="signup-email"
@@ -152,11 +213,24 @@ const Auth = () => {
                   <Input
                     id="signup-password"
                     type="password"
+                    placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={6}
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">I want to</Label>
+                  <Select value={role} onValueChange={(value: "user" | "mentor") => setRole(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">Find a Mentor</SelectItem>
+                      <SelectItem value="mentor">Become a Mentor</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Creating account..." : "Sign Up"}
