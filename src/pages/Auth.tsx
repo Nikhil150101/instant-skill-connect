@@ -21,17 +21,35 @@ const Auth = () => {
   const [role, setRole] = useState<"user" | "mentor">("user");
 
   useEffect(() => {
+    const checkAuthAndRedirect = async (userId: string) => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+
+      if (roles && roles.length > 0) {
+        const role = roles[0].role;
+        if (role === "admin") {
+          navigate("/admin-dashboard");
+        } else if (role === "mentor") {
+          navigate("/mentor-dashboard");
+        } else {
+          navigate("/user-dashboard");
+        }
+      }
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        navigate("/");
+        checkAuthAndRedirect(session.user.id);
       }
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        navigate("/");
+        checkAuthAndRedirect(session.user.id);
       }
     });
 
