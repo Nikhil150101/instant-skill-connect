@@ -32,6 +32,7 @@ const MentorDashboard = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [profile, setProfile] = useState<{ full_name: string } | null>(null);
   const [mentorProfile, setMentorProfile] = useState<MentorProfile | null>(null);
+  const [userId, setUserId] = useState<string>("");
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -57,11 +58,37 @@ const MentorDashboard = () => {
         return;
       }
 
+      setUserId(session.user.id);
       fetchData(session.user.id);
     };
 
     checkAuth();
   }, [navigate, toast]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    // Set up realtime subscription for sessions
+    const channel = supabase
+      .channel('mentor-sessions')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'sessions',
+          filter: `mentor_id=eq.${userId}`
+        },
+        () => {
+          fetchData(userId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
 
   const fetchData = async (userId: string) => {
     try {
